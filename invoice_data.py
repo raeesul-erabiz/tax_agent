@@ -91,6 +91,7 @@ CRITICAL REQUIREMENTS:
 # Extract data from invoice using Gemini
 def extract_invoice_data(image_data):
     try:
+        print("Starting data extraction...")  # Debug log
         model = setup_gemini()
         
         # Convert image to base64 for API
@@ -133,6 +134,7 @@ def extract_invoice_data(image_data):
 
 # Save extracted data to JSON file
 def save_extraction_result(data, filename=None):
+    print("Saving extraction result...")  # Debug log
     results_dir = ensure_results_dir()
     
     if filename is None:
@@ -155,14 +157,14 @@ def display_extracted_data(data):
     col1, col2 = st.columns(2)
     
     with col1:
-        st.subheader("📍 Shop Information")
+        st.subheader("🏪 Shop Information")
         shop_info = data.get("shop_info", {})
         st.write(f"**Name:** {shop_info.get('shop_name', 'N/A')}")
         st.write(f"**Address:** {shop_info.get('shop_address', 'N/A')}")
         
         contacts = shop_info.get('shop_contact_numbers', [])
         if contacts:
-            st.write(f"**Phone:** {', '.join(contacts)}")
+            st.write(f"**Phone:** {', '.join(map(str, contacts))}")
         
         email = shop_info.get('shop_email')
         if email:
@@ -179,14 +181,27 @@ def display_extracted_data(data):
     st.subheader("💰 Financial Summary")
     col1, col2, col3, col4 = st.columns(4)
     
+    # Helper function to safely get numeric values
+    def safe_float(value, default=0.0):
+        if value is None:
+            return default
+        try:
+            return float(value)
+        except (ValueError, TypeError):
+            return default
+    
     with col1:
-        st.metric("Subtotal", f"${invoice_details.get('invoice_subtotal', 0):.2f}")
+        subtotal = safe_float(invoice_details.get('invoice_subtotal'))
+        st.metric("Subtotal", f"${subtotal:.2f}")
     with col2:
-        st.metric("Total Discount", f"${invoice_details.get('invoice_total_discount', 0):.2f}")
+        discount = safe_float(invoice_details.get('invoice_total_discount'))
+        st.metric("Total Discount", f"${discount:.2f}")
     with col3:
-        st.metric("Total Tax", f"${sum(item.get('tax', 0) for item in data.get('line_items', [])):.2f}")
+        total_tax = sum(safe_float(item.get('tax', 0)) for item in data.get('line_items', []))
+        st.metric("Total Tax", f"${total_tax:.2f}")
     with col4:
-        st.metric("TOTAL", f"${invoice_details.get('invoice_total', 0):.2f}", delta=None)
+        total = safe_float(invoice_details.get('invoice_total'))
+        st.metric("TOTAL", f"${total:.2f}", delta=None)
     
     # Display line items
     if data.get("line_items"):
@@ -196,13 +211,13 @@ def display_extracted_data(data):
         for idx, item in enumerate(data.get("line_items", []), 1):
             items_data.append({
                 "#": idx,
-                "Code": item.get("item_code", "N/A"),
+                "Code": item.get("item_code") or "N/A",
                 "Item Name": item.get("item_name", "N/A"),
-                "Qty": item.get("quantity", 0),
-                "Unit Price": f"${item.get('unit_price', 0):.2f}",
-                "Discount": f"${item.get('discount', 0):.2f}",
-                "Tax": f"${item.get('tax', 0):.2f}",
-                "Total": f"${item.get('item_total_amount', 0):.2f}"
+                "Qty": safe_float(item.get("quantity")),
+                "Unit Price": f"${safe_float(item.get('unit_price')):.2f}",
+                "Discount": f"${safe_float(item.get('discount')):.2f}",
+                "Tax": f"${safe_float(item.get('tax')):.2f}",
+                "Total": f"${safe_float(item.get('item_total_amount')):.2f}"
             })
         
         st.dataframe(items_data, use_container_width=True)
@@ -240,16 +255,19 @@ with tab1:
             if st.button("🔍 Extract Data", use_container_width=True, type="primary"):
                 with st.spinner("Extracting invoice data..."):
                     extraction_result = extract_invoice_data(st.session_state.uploaded_image)
+                    print("Extraction is complete.")  # Debug log
                     
                     if extraction_result:
                         st.session_state.extraction_result = extraction_result
                         
                         # Save to file
                         filepath = save_extraction_result(extraction_result)
+                        print(f"Data saved to {filepath}")  # Debug log
                         st.success(f"✅ Data extracted successfully!")
                         st.info(f"📁 Saved to: `{filepath}`")
                         
                         # Display results
+                        print("Displaying extracted data...")  # Debug log
                         display_extracted_data(extraction_result)
                         
                         # Download options
