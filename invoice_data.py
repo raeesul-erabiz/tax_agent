@@ -137,7 +137,7 @@ def save_extraction_result(data, filename=None):
     
     if filename is None:
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-        invoice_num = data.get("invoice_details", {}).get("invoice_number", "unknown").replace("/", "_")
+        invoice_num = (data.get("invoice_details", {}).get("invoice_number") or "unknown").replace("/", "_")
         filename = f"invoice_{invoice_num}_{timestamp}.json"
     
     filepath = results_dir / filename
